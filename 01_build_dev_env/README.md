@@ -16,6 +16,8 @@ CUDA_SDK_BIN_PATH: %CUDA_SDK_PATH%\bin\win64
 CUDA_SDK_LIB_PATH: %CUDA_SDK_PATH%\common\lib\x64
 ```
 
+- **注意**：CUDA在11.6版本以后不会将Samples集成在toolkit安装包中，因此在安装完CUDA 11.8以后会找不到对应的CUDA Samples目录。需要从GitHub上下载CUDA Samples，下载地址为：https://github.com/NVIDIA/cuda-samples （中间遇到的问题可以参考贴子[[1](https://forums.developer.nvidia.com/t/cuda-samples-build-time-error-windows-10-and-cuda-10-1-toolikt/71549)][[2](https://blog.csdn.net/zaizhipo936/article/details/140287171?spm=1001.2014.3001.5506)]解决！）
+
 此外，还需要在系统变量 PATH 中添加如下变量：
 
 ```bash
