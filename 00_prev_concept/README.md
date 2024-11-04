@@ -241,6 +241,7 @@ CUDA 的执行模型中，核函数是一个非常重要的概念，意味着所
 
 ![](./images/exec_model_SM.jpg)
 
+> Streaming Multiprocessor (SM) (流式多处理器) 是 GPU 的核心计算单元，每个 SM 包含了多个 CUDA 核心，每个核心可以执行一个线程。**一个核函数会被分配到一个或多个 SM 上执行，每个 SM 上的核心会执行一个线程。**
 
 **在执行模型中，一个 Kernel 总会对应一个 Grid（要 Keep in Mind）。**
 
