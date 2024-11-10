@@ -32,6 +32,8 @@
 *.out
 *.app
 .DS_Store
+*.nsys-rep
+*.sqlite
 
 # vscode
 .vscode
