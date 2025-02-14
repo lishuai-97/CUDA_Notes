@@ -1,15 +1,65 @@
 # CUDA 编程笔记
 
 - [CUDA 编程笔记](#cuda-编程笔记)
-    - [1. 典型的CUDA程序基本框架](#1-典型的cuda程序基本框架)
-    - [2. CUDA编程规范](#2-cuda编程规范)
-    - [3. 常用的CUDA计时函数](#3-常用的cuda计时函数)
-    - [4. CUDA程序性能剖析](#4-cuda程序性能剖析)
-    - [5. GPU加速的关键因素](#5-gpu加速的关键因素)
-    - [6. CUDA中设备内存的分类与特征](#6-cuda中设备内存的分类与特征)
+    - [1. CUDA线程层次结构](#1-cuda线程层次结构)
+    - [2. 典型的CUDA程序基本框架](#2-典型的cuda程序基本框架)
+    - [3. CUDA编程规范](#3-cuda编程规范)
+    - [4. 常用的CUDA计时函数](#4-常用的cuda计时函数)
+    - [5. CUDA程序性能剖析](#5-cuda程序性能剖析)
+    - [6. GPU加速的关键因素](#6-gpu加速的关键因素)
+    - [7. CUDA中设备内存的分类与特征](#7-cuda中设备内存的分类与特征)
 
 
-### 1. 典型的CUDA程序基本框架
+### 1. CUDA线程层次结构
+
+1. **threadIdx.x**
+- 表示线程在其所属块内的索引
+- 范围：0到(blockDim.x - 1)
+- 例如：如果`blockDim.x = 256`，则`threadIdx.x`的范围是0-255。
+  
+2. **blockDim.x**
+- 表示每个块内的线程数量
+- 在核函数启动时通过`<<<...>>>`语法指定
+- 例如：`kernel<<<grid_size, 256>>>`，此时，`blockDim.x = 256`
+
+2. **blockIdx.x**
+- 表示当前块在网格中的索引
+- 范围：从0到(gridDim.x - 1)
+- 例如：如果启动4个块，则`blockIdx.x`的范围是0-3。
+
+**层次结构示意图**：
+```bash
+Grid（网格）
+├── Block 0 (blockIdx.x = 0)
+│   ├── Thread 0 (threadIdx.x = 0)
+│   ├── Thread 1 (threadIdx.x = 1)
+│   ├── ...
+│   └── Thread 255 (threadIdx.x = 255)
+├── Block 1 (blockIdx.x = 1)
+│   ├── Thread 0 (threadIdx.x = 0)
+│   ├── Thread 1 (threadIdx.x = 1)
+│   ├── ...
+│   └── Thread 255 (threadIdx.x = 255)
+└── ... (更多块)
+```
+
+**代码示例**：
+```cpp
+// 计算全局线程索引
+int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
+
+// 例如：
+// 如果 blockDim.x = 256, blockIdx.x = 1, threadIdx.x = 5
+// 则 global_idx = 256 * 1 + 5 = 261
+```
+
+**常见使用场景**：
+- 访问数组元素时计算索引
+- 划分数据以便并行处理
+- 确保线程不越界
+
+
+### 2. 典型的CUDA程序基本框架
 
 ```cpp
 头文件包含
@@ -29,11 +79,11 @@ int main(void)
 C++ 自定义函数和 CUDA 核函数的定义
 ```
 
-### 2. CUDA编程规范
+### 3. CUDA编程规范
 
 - 为了区分主机和设备中的变量，遵循CUDA编程的传统，用`d_`前缀表示设备变量，用`h_`前缀表示主机变量。
 
-### 3. 常用的CUDA计时函数
+### 4. 常用的CUDA计时函数
 
 ```cpp
 #include "error.cuh"
@@ -56,7 +106,7 @@ CHECK(cudaEventDestroy(start));
 CHECK(cudaEventDestroy(stop));
 ```
 
-### 4. CUDA程序性能剖析
+### 5. CUDA程序性能剖析
 
 **(1) 通过`nvprof`工具进行性能剖析，可以查看程序的运行时间、内存使用情况、核函数的调用次数等信息**。（8.0算力以下可以用）
 
@@ -102,7 +152,7 @@ ncu -o profile_result .\add3memory.exe
 ```
 
 
-### 5. GPU加速的关键因素
+### 6. GPU加速的关键因素
 
 一个CUDA程序能够获得高性能的必要（但不充分）条件有如下几点：
 
@@ -116,7 +166,7 @@ ncu -o profile_result .\add3memory.exe
 * 提高核函数的算术强度；
 * 增大核函数的并行规模。
 
-### 6. CUDA中设备内存的分类与特征
+### 7. CUDA中设备内存的分类与特征
 
 | 内存类型 | 物理位置 | 访问权限 | 可见范围 | 生命周期 |
 | :---: | :---: | :---: | :---: | :---: |
