@@ -10,6 +10,8 @@
     - [7. CUDA中设备内存的分类与特征](#7-cuda中设备内存的分类与特征)
     - [8. 线程束基本函数与协作组](#8-线程束基本函数与协作组)
     - [9. CUDA 流](#9-cuda-流)
+    - [10. 统一内存](#10-统一内存)
+    - [11. CUDA标准库](#11-cuda标准库)
 
 
 ### 1. CUDA线程层次结构
@@ -260,3 +262,22 @@ CUDA 程序的并行层次主要有两个，一个是核函数内部的并行，
 任何CUDA操作都存在于某个CUDA流中，要么是默认流（default steam），也称为空流（null stream），要么是明确指定的非空流。非默认的CUDA流（也称为非空流）是在主机端产生与销毁的。
 
 利用CUDA流并发多个核函数可以提升GPU硬件的利用率，减少闲置的SM，从而从整体上获得性能提升。
+
+
+### 10. 统一内存
+
+统一内存是一种逻辑上的概念，它既不是显存，也不是主机的内存，而是一种系统中的任何处理器（CPU或GPU）都可以访问，并能保持一致性的虚拟存储器。这种虚拟存储器是通过CPU和GPU各自内部集成的内存管理单元（memory management unit）实现的。在某种程度上，可以将一个系统中某个处理器的内存看成整个同意内存的超级大缓存。
+
+### 11. CUDA标准库
+
+| 库名 | 简介 |
+| :--- | :--- |
+|Thrust | 类似于 C++ 的标准模板库（standard template library）|
+|cuBLAS | 基本线性代数子程序（basic linear algebra subroutines） |
+|cuFFT  | 快速傅里叶变换（fast Fourier transform） |
+|cuSPARSE | 稀疏矩阵运算（sparse matrix operations） |
+|cuRAND | 随机数生成器（random number generator）|
+|cuSolver | 稠密（dense）矩阵和稀疏矩阵计算库 |
+|cuDNN | 深度神经网络 (deep neural networks) |
+
+- 如果程序中大量使用了 Thrust 库提供的功能，那么使用设备矢量是比较好的方法。如果程序中大部分代码是手写的核函数，只是偶尔使用 Thrust 库提供的功能，那么使用设备指针是比较好的方法。
