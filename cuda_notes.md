@@ -26,7 +26,7 @@
 - 在核函数启动时通过`<<<...>>>`语法指定
 - 例如：`kernel<<<grid_size, 256>>>`，此时，`blockDim.x = 256`
 
-2. **blockIdx.x**
+3. **blockIdx.x**
 - 表示当前块在网格中的索引
 - 范围：从0到(gridDim.x - 1)
 - 例如：如果启动4个块，则`blockIdx.x`的范围是0-3。
@@ -48,6 +48,9 @@ Grid（网格）
 ```
 
 **代码示例**：
+
+`block 的索引 * 每个 block 的 thread 个数 + block 内的 thread 索引计算出全局索引`
+
 ```cpp
 // 计算全局线程索引
 int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
@@ -62,6 +65,11 @@ int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
 - 划分数据以便并行处理
 - 确保线程不越界
 
+4. **warp_idx**
+- 表示当前线程在当前block中是第几个warp（warp会选择相邻的线程号做组合）
+
+5. **calc_idx**
+- 表示当前线程计算的是全局的第几个thread；
 
 ### 2. 典型的CUDA程序基本框架
 
