@@ -3,15 +3,16 @@
 - [CUDA 编程笔记](#cuda-编程笔记)
     - [1. CUDA线程层次结构](#1-cuda线程层次结构)
     - [2. 典型的CUDA程序基本框架](#2-典型的cuda程序基本框架)
-    - [3. CUDA编程规范](#3-cuda编程规范)
-    - [4. 常用的CUDA计时函数](#4-常用的cuda计时函数)
-    - [5. CUDA程序性能剖析](#5-cuda程序性能剖析)
-    - [6. GPU加速的关键因素](#6-gpu加速的关键因素)
-    - [7. CUDA中设备内存的分类与特征](#7-cuda中设备内存的分类与特征)
-    - [8. 线程束基本函数与协作组](#8-线程束基本函数与协作组)
-    - [9. CUDA 流](#9-cuda-流)
-    - [10. 统一内存](#10-统一内存)
-    - [11. CUDA标准库](#11-cuda标准库)
+    - [3. 多线程并行计算](#3-多线程并行计算)
+    - [4. CUDA编程规范](#4-cuda编程规范)
+    - [5. 常用的CUDA计时函数](#5-常用的cuda计时函数)
+    - [6. CUDA程序性能剖析](#6-cuda程序性能剖析)
+    - [7. GPU加速的关键因素](#7-gpu加速的关键因素)
+    - [8. CUDA中设备内存的分类与特征](#8-cuda中设备内存的分类与特征)
+    - [9. 线程束基本函数与协作组](#9-线程束基本函数与协作组)
+    - [10. CUDA 流](#10-cuda-流)
+    - [11. 统一内存](#11-统一内存)
+    - [12. CUDA标准库](#12-cuda标准库)
 
 
 ### 1. CUDA线程层次结构
@@ -71,6 +72,7 @@ int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
 5. **calc_idx**
 - 表示当前线程计算的是全局的第几个thread；
 
+---
 ### 2. 典型的CUDA程序基本框架
 
 ```cpp
@@ -91,11 +93,107 @@ int main(void)
 C++ 自定义函数和 CUDA 核函数的定义
 ```
 
-### 3. CUDA编程规范
+---
+### 3. 多线程并行计算
+
+GPU 上一般包含很多流式处理器 SM，每个 SM 是 CUDA 架构中的基本计算单元，其可分为若干（如2~3）个网格，每个网格内包含若干（如65535）个线程块，每个线程块包含若干（如512）个线程，概要地理解的话：
+
+- `Thread`：一个 CUDA Kernel 可以被多个 threads 来执行；
+- `Block`：多个 threads 会组成一个 Block，而同一个 block 中的 threads可以同步，也可以通过 shared memory 通信；
+- `Grid`：多个 blocks 可以组成一个 Grid
+  
+其中，一个 Grid 可以包含多个 Blocks。Blocks 的分布方式可以是一维的，二维，三维的；Block 包含多个 Threads，Threads 的分布方式也可以是一维，二维，三维的。
+
+**一维 Grid**
+
+Grid 为一维，Block 为一维：
+
+```cpp
+int threadId = blockIdx.x *blockDim.x + threadIdx.x;
+```
+
+Grid 为一维，Block 为二维：
+
+```cpp
+int threadId = blockIdx.x * blockDim.x * blockDim.y + 
+              threadIdx.y * blockDim.x + threadIdx.x;
+```
+
+Grid 为一维，Block 为三维：
+
+```cpp
+int threadId = blockIdx.x * blockDim.x * blockDim.y * blockDim.z + 
+              threadIdx.z * blockDim.y * blockDim.x +
+              threadIdx.y * blockDim.x + threadIdx.x;
+```
+
+**二维 Grid**
+
+Grid 为二维，Block 为一维：
+
+```cpp
+int blockId = blockIdx.y * gridDim.x + blockIdx.x;  
+int threadId = blockId * blockDim.x + threadIdx.x;
+```
+
+Grid 为二维，Block 为二维：
+
+```cpp
+int blockId = blockIdx.x + blockIdx.y * gridDim.x;  
+int threadId = blockId * (blockDim.x * blockDim.y)  
+                       + (threadIdx.y * blockDim.x) + threadIdx.x;
+```
+
+Grid 为二维，Block 为三维：
+
+```cpp
+int blockId = blockIdx.x + blockIdx.y * gridDim.x;  
+int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z)  
+                       + (threadIdx.z * (blockDim.x * blockDim.y))  
+                       + (threadIdx.y * blockDim.x) + threadIdx.x;
+```
+
+**三维 Grid**
+
+Grid 为三维，Block 为一维：
+
+```cpp
+int blockId = blockIdx.x + blockIdx.y * gridDim.x  
+             + gridDim.x * gridDim.y * blockIdx.z;  
+
+int threadId = blockId * blockDim.x + threadIdx.x;
+```
+
+Grid 为三维，Block 为二维：
+
+```cpp
+int blockId = blockIdx.x + blockIdx.y * gridDim.x  
+             + gridDim.x * gridDim.y * blockIdx.z;  
+
+int threadId = blockId * (blockDim.x * blockDim.y)  
+                       + (threadIdx.y * blockDim.x) + threadIdx.x;
+```
+
+Grid 为三维，Block 为三维：
+
+```cpp
+int blockId = blockIdx.x + blockIdx.y * gridDim.x  
+             + gridDim.x * gridDim.y * blockIdx.z;  
+
+int threadId = blockId * (blockDim.x * blockDim.y * blockDim.z)  
+                       + (threadIdx.z * (blockDim.x * blockDim.y))  
+                       + (threadIdx.y * blockDim.x) + threadIdx.x;
+```
+
+
+---
+### 4. CUDA编程规范
 
 - 为了区分主机和设备中的变量，遵循CUDA编程的传统，用`d_`前缀表示设备变量，用`h_`前缀表示主机变量。
 
-### 4. 常用的CUDA计时函数
+
+---
+### 5. 常用的CUDA计时函数
 
 ```cpp
 #include "error.cuh"
@@ -118,7 +216,8 @@ CHECK(cudaEventDestroy(start));
 CHECK(cudaEventDestroy(stop));
 ```
 
-### 5. CUDA程序性能剖析
+---
+### 6. CUDA程序性能剖析
 
 **(1) 通过`nvprof`工具进行性能剖析，可以查看程序的运行时间、内存使用情况、核函数的调用次数等信息**。（8.0算力以下可以用）
 
@@ -163,8 +262,8 @@ std::exception::what: bad conversion
 ncu -o profile_result .\add3memory.exe
 ```
 
-
-### 6. GPU加速的关键因素
+---
+### 7. GPU加速的关键因素
 
 一个CUDA程序能够获得高性能的必要（但不充分）条件有如下几点：
 
@@ -178,7 +277,9 @@ ncu -o profile_result .\add3memory.exe
 * 提高核函数的算术强度；
 * 增大核函数的并行规模。
 
-### 7. CUDA中设备内存的分类与特征
+
+---
+### 8. CUDA中设备内存的分类与特征
 
 | 内存类型 | 物理位置 | 访问权限 | 可见范围 | 生命周期 |
 | :---: | :---: | :---: | :---: | :---: |
@@ -243,7 +344,8 @@ z[n] = x[n] + y[n];
   - 若干混合精度的张量核心（tensor cores）
 
 
-### 8. 线程束基本函数与协作组
+---
+### 9. 线程束基本函数与协作组
 
 **线程束（warp）是一个线程块中连续的32个线程**。
 
@@ -252,7 +354,8 @@ z[n] = x[n] + y[n];
   - 从更细的粒度看，一个SM以32个线程为单位产生、管理、调度、执行程序。这样的32个线程称为一个线程束（warp）。一个SM可以处理一个或多个线程块。一个线程块又可分为若干个线程束。例如，一个128线程的线程块将被分为4个线程束，其中每个线程束包好32个具有连续线程号的线程。这样的划分对所有的GPU架构都是成立的。
 
 
-### 9. CUDA 流
+---
+### 10. CUDA 流
 
 CUDA 程序的并行层次主要有两个，一个是核函数内部的并行，一个是核函数外部的并行。
 
@@ -272,11 +375,14 @@ CUDA 程序的并行层次主要有两个，一个是核函数内部的并行，
 利用CUDA流并发多个核函数可以提升GPU硬件的利用率，减少闲置的SM，从而从整体上获得性能提升。
 
 
-### 10. 统一内存
+---
+### 11. 统一内存
 
 统一内存是一种逻辑上的概念，它既不是显存，也不是主机的内存，而是一种系统中的任何处理器（CPU或GPU）都可以访问，并能保持一致性的虚拟存储器。这种虚拟存储器是通过CPU和GPU各自内部集成的内存管理单元（memory management unit）实现的。在某种程度上，可以将一个系统中某个处理器的内存看成整个同意内存的超级大缓存。
 
-### 11. CUDA标准库
+
+---
+### 12. CUDA标准库
 
 | 库名 | 简介 |
 | :--- | :--- |
