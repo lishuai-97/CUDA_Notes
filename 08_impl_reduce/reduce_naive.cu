@@ -21,7 +21,7 @@ __global__ void reduce_naive_kernel(int *arr, int *out, int len)
 
     __syncthreads(); // 等待所有线程完成
 
-    // 每个线程计算 bdim^0.5 个轮回
+    // 每个线程计算 log2(bdim)-1 个轮回
     // 比如 bdim = 8, 则每个线程计算 2 个轮回
     for (int s = 1; s < bdim; s *= 2)
     {
