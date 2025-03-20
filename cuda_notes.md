@@ -1,6 +1,7 @@
 # CUDA 编程笔记
 
 - [CUDA 编程笔记](#cuda-编程笔记)
+    - [0. CUDA编程简介](#0-cuda编程简介)
     - [1. CUDA线程层次结构](#1-cuda线程层次结构)
     - [2. 典型的CUDA程序基本框架](#2-典型的cuda程序基本框架)
     - [3. 多线程并行计算](#3-多线程并行计算)
@@ -14,7 +15,29 @@
     - [11. 统一内存](#11-统一内存)
     - [12. CUDA标准库](#12-cuda标准库)
 
+---
+### 0. CUDA编程简介
+CUDA是一个为支持CUDA的GPU提供的平台和编程模型。该平台使GPU能够进行通用计算。CUDA提供了C/C++语言扩展和API，以便用户利用GPU进行高效计算。一般称CPU为host，GPU为device。
 
+CUDA C++语言中有一个加在前面的关键字`__global__`，用于表明该函数是运行在GPU上的，并且可以被CPU调用，这种函数被称为kernel。
+
+当我们调用kernel的时候，需要在函数名和括号之间加上`<<<M, T>>`，这个符号表示我们要启动一个kernel，并且在这个符号中间的参数表示我们要启动的线程块的数量和每个线程块中的线程数量。其中`M`是block的个数，`T`是每个block中的线程个数。这些线程都是并行执行的，每个线程中都在执行该函数。
+
+GPU在同一时刻运行一个kernel（也就是一组任务），kernel运行在grid上，每个grid由多个block组成（他们都是独立的ALU组），每个block有多个线程。
+
+![](./figs/CUDA_intro.png)
+
+同一block中的线程一般合作完成任务，它们可以共享内存（这部分内存速度极快，用`__shared__`关键字声明）。每个线程“知道”它在哪个block（通过访问内置变量`blockIdx.x`）和它是第几个线程（通过访问变量`threadIdx.x`），以及每个block有多少个线程（`blockDim.x`），从而确定它应该完成什么任务。实际上线程和block的索引是三维的，这里只举了一个一维的例子。
+
+![](./figs/CUDA_intro_block_thread_demo.png)
+
+注意GPU和CPU的内存是隔离的，想要操作显存或者在显存和CPU内存之间进行交流必须显式的声明这些操作。指针也是不一样的，有可能虽然是`int*`，但表示的含义却不同：device指针指向显存，host指针指向CPU内存。CUDA提供了操作内存的内置函数：`cudaMalloc`、`cudaFree`、`cudaMemcpy`等，它们分别类似于C函数`malloc`、`free`和`memcpy`。
+
+关于同步方面，内置函数`__syncthreads()`可以同步一个block中的所有线程。在CPU中调用内置函数`cudaDeviceSynchronize()`可以阻塞CPU，直到所有先前发出的CUDA调用都完成为止。
+
+另外还有`__host__`关键字和`__device__`关键字，前者表示该函数只编译成CPU版本（这是默认状态），后者表示只编译成GPU版本。二者同时使用表示编译CPU和GPU两个版本。从CPU调用`__device__`函数和从GPU调用`__host__`函数都会报错。
+
+---
 ### 1. CUDA线程层次结构
 
 1. **threadIdx.x**
@@ -395,3 +418,71 @@ CUDA 程序的并行层次主要有两个，一个是核函数内部的并行，
 |cuDNN | 深度神经网络 (deep neural networks) |
 
 - 如果程序中大量使用了 Thrust 库提供的功能，那么使用设备矢量是比较好的方法。如果程序中大部分代码是手写的核函数，只是偶尔使用 Thrust 库提供的功能，那么使用设备指针是比较好的方法。
+
+
+**Cooperative Groups**:
+
+`_syncthreads()`函数提供了在一个block内同步各线程的方法，但有时要同步block内的一部分线程或者多个block的线程，这时候就需要`Cooperative Groups`库了。这个库定义了划分和同步一组线程的方法。
+
+```cpp
+auto idx = cg::this_grid().thread_rank();
+```
+
+`cg::this_grid()`返回一个`cg::grid_group`实例，表示当前线程所处的grid。它有一个方法`thread_rank()`返回当前线程在该grid中排第几。
+
+```cpp
+auto block = cg::this_thread_block();
+```
+
+`cg::this_thread_block()`返回一个`cg::thread_block`实例。成员函数有：
+- `block.sync()`：同步该block中所有线程（等价于`__syncthreads()`）；
+- `block.thread_rank()`：返回非负整数，表示当前线程在该block中排第几；
+- `block.group_index()`：返回一个`cg::dim3`实例，表示该block在grid中的三维索引；
+- `block.thread_index()`：返回一个`cg::dim3`实例，表示当前线程在block中的三维索引。
+
+**CUB**:
+
+> CUB provides layered algorithms that correspond to the thread/warp/block/device hierarchy of threads in CUDA. There are distinct algorithms for each layer and higher-level layers build on top of those below.
+
+CUB就是针对不同的计算登记：线程、warp、block、device等设计了并行算法。例如，`reduce`函数有四个版本：`ThreadReduce`、`WarpReduce`、`BlockReduce`、`DeviceReduce`。
+
+(a) `cub:DeviceReduce::InclusiveSum`
+这个函数是算前缀和的。所谓"Includive"就是第$i$个数被计入第`i`个和中。函数定义如下：
+```cpp
+template<typename InputIteratorT, typename OutputIteratorT>
+static inline cudaError_t InclusiveSum(
+	void *d_temp_storage,           // 额外需要的临时显存空间
+	size_t &temp_storage_bytes,     // 临时显存空间的大小
+	InputIteratorT d_in,            // 输入指针
+	OutputIteratorT d_out,          // 输出指针
+	int num_items,                  // 元素个数
+	cudaStream_t stream = 0)
+```
+
+(b) `cub::DeviceRadixSort::SortPairs`：device级别的并行基数排序
+
+该函数根据key将(key, value)对进行升序排序。这是一种稳定排序。
+
+函数定义如下：
+```cpp
+template<typename KeyT, typename ValueT, typename NumItemsT>
+static inline cudaError_t SortPairs(
+	void *d_temp_storage,          // 排序时用到的临时显存空间
+	size_t &temp_storage_bytes,    // 临时显存空间的大小
+	const KeyT *d_keys_in, KeyT *d_keys_out, // key的输入和输出指针
+	const ValueT *d_values_in, ValueT *d_values_out, // value的输入和输出指针
+	NumItemsT num_items,                             // 对多少个条目进行排序
+	int begin_bit = 0,                               // 低位
+	int end_bit = sizeof(KeyT) * 8,                  // 高位
+	cudaStream_t stream = 0)
+	// 按照[begin_bit, end_bit)内的位进行排序
+```
+
+**GLM**:
+
+GLM意为“OpenGL Mathematics”，是一个专为图形学设计的只有头文件的C++数学库
+
+- `glm::vec3`: 三维向量
+- `glm::vec4`: 四维向量
+- `glm::mat3`: 3x3矩阵
+- `glm::dot`: 向量点积
