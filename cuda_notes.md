@@ -95,6 +95,33 @@ int global_idx = blockDim.x * blockIdx.x + threadIdx.x;
 5. **calc_idx**
 - 表示当前线程计算的是全局的第几个thread；
 
+6. **Warp与Bank**
+- **Warp**是CUDA中**线程调度**的基本单位，由连续的32个线程组成。GPU的SIMT（单指令多线程）架构要求同一Warp内的所有线程执行相同的指令，但可以处理不同的数据。
+  - 线程块（block）由多个warp组成（例如，一个包含256线程的block被分为8个warp）
+  - **Warp大小**：NVIDIA GPU的warp固定为32线程
+  - 执行方式：
+    - 所有线程在warp中同步执行;
+    - 若线程间存在分支（如条件语句），可能导致**Warp Divergence**，即部分线程空闲，从而降低效率。
+  - 优化策略：
+    - 交叉寻址，使得连续的线程访问的地址不再连续；
+    - 这样可以避免warp divergence，但会导致bank conflict。
+
+- **Bank**是共享内存（Shared Memory）的**逻辑分区**，用于提高并行访问效率。共享内存被划分为多个bank（通常为32个），每个bank可独立响应访问请求。
+  - **Bank数量**：通常为32，与warp大小对齐（每个bank对应warp中的一个线程）
+  - **Bank冲突**（Bank Conflict）：
+    - 同一个Block的线程会共享一块共享内存；
+    - 当同一warp中的多个线程同时访问同一bank的不同地址时，会导致串行化访问，增加延迟；
+    - 在最坏的情况下，即一个warp中的所有线程访问了相同bank的32个不同地址的话，那么这32个访问操作将会全部被序列化，大大降低了内存带宽；
+    - 在一个warp内对同一个bank中的$n$地址同时访问将导致$n$次内存事务，称为发生了$n$路bank conflict；
+    - 注意，不同warp中的线程之间不存在bank conflict；
+    - 若多个线程访问同一bank的同一地址，则出发**广播**（Broadcast），无冲突。
+  - 访问规则：
+    - 理想情况：同一warp的线程访问不通的bank，实现并行访问；
+    - 冲突示例：线程0访问bank0的地址0，线程1访问bank0的地址4 -> 冲突。
+  - 优化策略：
+    - 利用内存填充（Padding）、调整数据布局（如转置矩阵）或使用shuffle指令避免bank冲突；
+    - 利用广播机制减少冲突次数。 
+
 ---
 ### 2. 典型的CUDA程序基本框架
 
